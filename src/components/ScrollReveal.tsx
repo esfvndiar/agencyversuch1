@@ -1,12 +1,14 @@
-
 import React, { useEffect, useRef, useState, ReactNode } from 'react';
+
+type AnimationType = 'fade-up' | 'fade-left' | 'fade-right' | 'zoom-in' | 'flip' | 'slide-up';
 
 interface ScrollRevealProps {
   children: ReactNode;
   className?: string;
   threshold?: number;
   delay?: number;
-  animation?: 'fade-up' | 'fade-left' | 'fade-right' | 'zoom-in' | 'flip' | 'slide-up';
+  animation?: AnimationType;
+  once?: boolean;
 }
 
 const ScrollReveal: React.FC<ScrollRevealProps> = ({ 
@@ -14,22 +16,26 @@ const ScrollReveal: React.FC<ScrollRevealProps> = ({
   className = '', 
   threshold = 0.1,
   delay = 0,
-  animation = 'fade-up'
+  animation = 'fade-up',
+  once = true
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
+    observerRef.current = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setTimeout(() => {
             setIsVisible(true);
           }, delay);
           
-          if (ref.current) {
-            observer.unobserve(ref.current);
+          if (once && ref.current) {
+            observerRef.current?.unobserve(ref.current);
           }
+        } else if (!once) {
+          setIsVisible(false);
         }
       },
       {
@@ -39,43 +45,38 @@ const ScrollReveal: React.FC<ScrollRevealProps> = ({
     );
 
     if (ref.current) {
-      observer.observe(ref.current);
+      observerRef.current.observe(ref.current);
     }
 
     return () => {
-      if (ref.current) {
-        observer.unobserve(ref.current);
+      if (observerRef.current) {
+        observerRef.current.disconnect();
       }
     };
-  }, [threshold, delay]);
+  }, [threshold, delay, once]);
 
-  const getAnimationClass = () => {
-    if (!isVisible) {
-      switch (animation) {
-        case 'fade-up':
-          return 'opacity-0 translate-y-10';
-        case 'fade-left':
-          return 'opacity-0 -translate-x-10';
-        case 'fade-right':
-          return 'opacity-0 translate-x-10';
-        case 'zoom-in':
-          return 'opacity-0 scale-95';
-        case 'flip':
-          return 'opacity-0 rotateY-90';
-        case 'slide-up':
-          return 'opacity-0 translate-y-20';
-        default:
-          return 'opacity-0 translate-y-10';
-      }
-    }
-    
-    return 'opacity-100 translate-y-0 translate-x-0 scale-100 rotateY-0';
+  const getAnimationClass = (): string => {
+    const baseClasses = 'transition-all duration-1000 ease-out';
+    const visibilityClasses = isVisible 
+      ? 'opacity-100 translate-y-0 translate-x-0 scale-100 rotateY-0' 
+      : 'opacity-0';
+
+    const animationClasses = isVisible ? '' : {
+      'fade-up': 'translate-y-10',
+      'fade-left': '-translate-x-10',
+      'fade-right': 'translate-x-10',
+      'zoom-in': 'scale-95',
+      'flip': 'rotateY-90',
+      'slide-up': 'translate-y-20'
+    }[animation];
+
+    return `${baseClasses} ${visibilityClasses} ${animationClasses}`;
   };
 
   return (
     <div 
       ref={ref}
-      className={`${className} transition-all duration-1000 ease-out ${getAnimationClass()}`}
+      className={`${className} ${getAnimationClass()}`}
       style={{ transitionDelay: isVisible ? `${delay}ms` : '0ms' }}
     >
       {children}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import ScrollReveal from './ScrollReveal';
 import { toast } from '@/hooks/use-toast';
@@ -8,23 +8,49 @@ import { z } from 'zod';
 const contactSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
-  message: z.string().min(10, 'Message must be at least 10 characters')
+  message: z.string().min(10, 'Message must be at least 10 characters'),
+  service: z.string().optional()
 });
 
 interface ContactFormData {
   name: string;
   email: string;
   message: string;
+  service?: string;
 }
+
+interface SocialLink {
+  name: string;
+  url: string;
+  icon?: string;
+}
+
+const socialLinks: SocialLink[] = [
+  { name: 'Twitter', url: 'https://twitter.com/alavi' },
+  { name: 'Instagram', url: 'https://instagram.com/alavi' },
+  { name: 'LinkedIn', url: 'https://linkedin.com/company/alavi' }
+];
 
 const ContactSection: React.FC = () => {
   const [formData, setFormData] = useState<ContactFormData>({
     name: '',
     email: '',
-    message: ''
+    message: '',
+    service: ''
   });
   const [errors, setErrors] = useState<Partial<ContactFormData>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitCount, setSubmitCount] = useState(0);
+  const [lastSubmitTime, setLastSubmitTime] = useState<number>(0);
+
+  // Check for service parameter in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.split('?')[1]);
+    const service = params.get('service');
+    if (service) {
+      setFormData(prev => ({ ...prev, service }));
+    }
+  }, []);
 
   const validateForm = () => {
     try {
@@ -57,6 +83,13 @@ const ContactSection: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Rate limiting: max 3 submissions per minute
+    const now = Date.now();
+    if (now - lastSubmitTime < 60000 && submitCount >= 3) {
+      toast.error('Please wait a minute before submitting again');
+      return;
+    }
+
     if (!validateForm()) {
       toast.error('Please fix the form errors before submitting');
       return;
@@ -74,14 +107,17 @@ const ContactSection: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to send message');
       }
 
       toast.success("Message sent! We'll get back to you soon.");
-      setFormData({ name: '', email: '', message: '' });
+      setFormData({ name: '', email: '', message: '', service: '' });
+      setSubmitCount(prev => prev + 1);
+      setLastSubmitTime(now);
     } catch (error) {
-      toast.error('Failed to send message. Please try again later.');
       console.error('Contact form submission error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to send message. Please try again later.');
     } finally {
       setIsSubmitting(false);
     }
@@ -115,8 +151,14 @@ const ContactSection: React.FC = () => {
                     errors.name ? 'border-red-500' : 'border-zinc-300'
                   } px-3 py-2 text-zinc-900 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary`}
                   disabled={isSubmitting}
+                  aria-invalid={!!errors.name}
+                  aria-describedby={errors.name ? 'name-error' : undefined}
                 />
-                {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
+                {errors.name && (
+                  <p id="name-error" className="mt-1 text-sm text-red-500" role="alert">
+                    {errors.name}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -133,8 +175,14 @@ const ContactSection: React.FC = () => {
                     errors.email ? 'border-red-500' : 'border-zinc-300'
                   } px-3 py-2 text-zinc-900 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary`}
                   disabled={isSubmitting}
+                  aria-invalid={!!errors.email}
+                  aria-describedby={errors.email ? 'email-error' : undefined}
                 />
-                {errors.email && <p className="mt-1 text-sm text-red-500">{errors.email}</p>}
+                {errors.email && (
+                  <p id="email-error" className="mt-1 text-sm text-red-500" role="alert">
+                    {errors.email}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -151,16 +199,33 @@ const ContactSection: React.FC = () => {
                     errors.message ? 'border-red-500' : 'border-zinc-300'
                   } px-3 py-2 text-zinc-900 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary`}
                   disabled={isSubmitting}
+                  aria-invalid={!!errors.message}
+                  aria-describedby={errors.message ? 'message-error' : undefined}
                 />
-                {errors.message && <p className="mt-1 text-sm text-red-500">{errors.message}</p>}
+                {errors.message && (
+                  <p id="message-error" className="mt-1 text-sm text-red-500" role="alert">
+                    {errors.message}
+                  </p>
+                )}
               </div>
 
               <button
                 type="submit"
                 className="w-full rounded-md bg-primary px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isSubmitting}
+                aria-busy={isSubmitting}
               >
-                {isSubmitting ? 'Sending...' : 'Send Message'}
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Sending...
+                  </span>
+                ) : (
+                  'Send Message'
+                )}
               </button>
             </form>
           </ScrollReveal>
@@ -170,8 +235,18 @@ const ContactSection: React.FC = () => {
               <div>
                 <h3 className="text-lg font-medium text-zinc-900 mb-3">Contact Details</h3>
                 <div className="space-y-2">
-                  <p className="text-zinc-600">hello@alavi.com</p>
-                  <p className="text-zinc-600">+1 (234) 567-890</p>
+                  <a 
+                    href="mailto:hello@alavi.com"
+                    className="text-zinc-600 hover:text-zinc-900 transition-colors block"
+                  >
+                    hello@alavi.com
+                  </a>
+                  <a 
+                    href="tel:+1234567890"
+                    className="text-zinc-600 hover:text-zinc-900 transition-colors block"
+                  >
+                    +1 (234) 567-890
+                  </a>
                 </div>
               </div>
               
@@ -187,13 +262,16 @@ const ContactSection: React.FC = () => {
               <div>
                 <h3 className="text-lg font-medium text-zinc-900 mb-3">Connect</h3>
                 <div className="flex space-x-4">
-                  {["Twitter", "Instagram", "LinkedIn"].map((social, i) => (
+                  {socialLinks.map((social) => (
                     <a 
-                      key={i}
-                      href="#" 
+                      key={social.name}
+                      href={social.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="text-zinc-600 hover:text-zinc-900 transition-colors"
+                      aria-label={`Follow us on ${social.name}`}
                     >
-                      {social}
+                      {social.name}
                     </a>
                   ))}
                 </div>

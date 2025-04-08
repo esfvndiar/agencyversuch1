@@ -1,67 +1,90 @@
+import React, { useEffect, useRef } from 'react';
+import { Helmet } from 'react-helmet-async';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
+import { ScrollReveal } from '@/components/ScrollReveal';
+import { SEO } from '@/lib/constants';
 
-import React, { useEffect } from 'react';
-import Navbar from '../components/Navbar';
-import HeroSection from '../components/HeroSection';
-import ServicesSection from '../components/ServicesSection';
-import AboutSection from '../components/AboutSection';
-import ContactSection from '../components/ContactSection';
-import Footer from '../components/Footer';
+// Lazy load sections
+const HeroSection = React.lazy(() => import('@/components/HeroSection'));
+const ServicesSection = React.lazy(() => import('@/components/ServicesSection'));
+const AboutSection = React.lazy(() => import('@/components/AboutSection'));
+const ContactSection = React.lazy(() => import('@/components/ContactSection'));
+
+// Loading component for sections
+const SectionLoader: React.FC = () => (
+  <div className="min-h-screen flex items-center justify-center" role="status" aria-label="Loading section">
+    <div className="animate-pulse text-zinc-400">Loading...</div>
+  </div>
+);
 
 const Index: React.FC = () => {
-  useEffect(() => {
-    // Smooth scroll setup
-    const handleScroll = () => {
-      const scrollY = window.scrollY;
-      
-      // Parallax effect for background elements
-      document.documentElement.style.setProperty('--scroll', scrollY.toString());
-      
-      // Intersection Observer for scroll animations
-      const observerOptions = {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0.15
-      };
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
+  useEffect(() => {
+    // Initialize IntersectionObserver for scroll animations
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            entry.target.classList.add('revealed');
-            observer.unobserve(entry.target);
+            entry.target.classList.add('animate-fade-in');
+            observerRef.current?.unobserve(entry.target);
           }
         });
-      }, observerOptions);
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '50px'
+      }
+    );
 
-      // Observe all elements with the reveal-on-scroll class
-      document.querySelectorAll('.reveal-on-scroll').forEach(el => {
-        observer.observe(el);
-      });
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    handleScroll(); // Initial call to set positions
+    // Observe all sections
+    sectionRefs.current.forEach((ref) => {
+      if (ref) observerRef.current?.observe(ref);
+    });
 
     return () => {
-      window.removeEventListener('scroll', handleScroll);
+      observerRef.current?.disconnect();
     };
   }, []);
 
   return (
-    <div className="min-h-screen bg-white text-zinc-900 overflow-hidden">
-      <div className="fixed inset-0 bg-gradient-to-b from-white via-white to-zinc-50 -z-10"></div>
-      <div className="fixed inset-0 opacity-20 -z-10">
-        <div className="absolute top-0 left-0 w-full h-full bg-grid-pattern opacity-20"></div>
+    <>
+      <Helmet>
+        <title>{SEO.title}</title>
+        <meta name="description" content={SEO.description} />
+        <meta property="og:title" content={SEO.title} />
+        <meta property="og:description" content={SEO.description} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={SEO.url} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={SEO.title} />
+        <meta name="twitter:description" content={SEO.description} />
+      </Helmet>
+
+      <div className="min-h-screen bg-background">
+        <a 
+          href="#main-content" 
+          className="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-50 focus:bg-white focus:px-4 focus:py-2 focus:text-primary focus:shadow-lg"
+        >
+          Skip to main content
+        </a>
+
+        <Navbar />
+        
+        <main id="main-content" className="relative">
+          <React.Suspense fallback={<SectionLoader />}>
+            <HeroSection ref={(el) => (sectionRefs.current[0] = el)} />
+            <ServicesSection ref={(el) => (sectionRefs.current[1] = el)} />
+            <AboutSection ref={(el) => (sectionRefs.current[2] = el)} />
+            <ContactSection ref={(el) => (sectionRefs.current[3] = el)} />
+          </React.Suspense>
+        </main>
+
+        <Footer />
       </div>
-      
-      <Navbar />
-      <main>
-        <HeroSection />
-        <ServicesSection />
-        <AboutSection />
-        <ContactSection />
-      </main>
-      <Footer />
-    </div>
+    </>
   );
 };
 

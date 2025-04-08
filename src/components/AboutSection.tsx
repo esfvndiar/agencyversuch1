@@ -1,18 +1,68 @@
-
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle, Users, Award, Clock } from 'lucide-react';
 import ScrollReveal from './ScrollReveal';
 import AnimatedText from './AnimatedText';
 
 const AboutSection: React.FC = () => {
+  const statsRef = useRef<HTMLDivElement>(null);
+  const [animatedStats, setAnimatedStats] = useState({
+    clients: 0,
+    projects: 0,
+    years: 0
+  });
+
   const stats = [
-    { icon: Users, value: '150+', label: 'Clients' },
-    { icon: Award, value: '200+', label: 'Projects' },
-    { icon: Clock, value: '10+', label: 'Years Experience' }
+    { icon: Users, value: '150+', label: 'Clients', target: 150 },
+    { icon: Award, value: '200+', label: 'Projects', target: 200 },
+    { icon: Clock, value: '10+', label: 'Years Experience', target: 10 }
   ];
-  
+
+  // Animate stats when in view
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            animateStats();
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    if (statsRef.current) {
+      observer.observe(statsRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  const animateStats = () => {
+    const duration = 2000; // 2 seconds
+    const steps = 60;
+    const interval = duration / steps;
+
+    let currentStep = 0;
+
+    const timer = setInterval(() => {
+      if (currentStep >= steps) {
+        clearInterval(timer);
+        return;
+      }
+
+      setAnimatedStats(prev => ({
+        clients: Math.min(Math.floor((stats[0].target * currentStep) / steps), stats[0].target),
+        projects: Math.min(Math.floor((stats[1].target * currentStep) / steps), stats[1].target),
+        years: Math.min(Math.floor((stats[2].target * currentStep) / steps), stats[2].target)
+      }));
+
+      currentStep++;
+    }, interval);
+  };
+
   return (
-    <section id="about" className="py-20 md:py-32 relative bg-gradient-to-b from-midblue to-deepblue">
+    <section id="about" className="py-20 md:py-32 relative bg-gradient-to-b from-midblue to-deepblue overflow-hidden">
       <div className="absolute inset-0 bg-hero-pattern opacity-5" />
       <div className="absolute top-1/3 left-10 w-64 h-64 bg-mintgreen/10 rounded-full blur-[80px]" />
       <div className="absolute bottom-1/3 right-10 w-64 h-64 bg-cyberblue/10 rounded-full blur-[80px]" />
@@ -72,13 +122,21 @@ const AboutSection: React.FC = () => {
             </ScrollReveal>
             
             <ScrollReveal delay={400}>
-              <div className="grid grid-cols-3 gap-6 mt-8">
+              <div ref={statsRef} className="grid grid-cols-3 gap-6 mt-8">
                 {stats.map((stat, index) => {
                   const Icon = stat.icon;
+                  const animatedValue = [
+                    animatedStats.clients,
+                    animatedStats.projects,
+                    animatedStats.years
+                  ][index];
+                  
                   return (
                     <div key={index} className="text-center p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
                       <Icon className="w-8 h-8 mx-auto mb-2 text-gradient" />
-                      <div className="text-2xl md:text-3xl font-bold text-gradient">{stat.value}</div>
+                      <div className="text-2xl md:text-3xl font-bold text-gradient">
+                        {animatedValue}+
+                      </div>
                       <div className="text-white/70">{stat.label}</div>
                     </div>
                   );

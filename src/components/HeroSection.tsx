@@ -1,67 +1,167 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowDown } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowRight } from 'lucide-react';
+import { motion, useScroll, useTransform } from 'framer-motion';
+import { useInView } from 'react-intersection-observer';
+
+const TYPING_VARIATIONS = [
+  'Digital Excellence',
+  'Creative Innovation',
+  'Brand Transformation',
+  'Web Development',
+  'UI/UX Design'
+];
+
+const Particle: React.FC<{
+  x: number;
+  y: number;
+  size: number;
+  delay: number;
+}> = ({ x, y, size, delay }) => (
+  <motion.div
+    initial={{ opacity: 0, scale: 0 }}
+    animate={{ opacity: 1, scale: 1 }}
+    transition={{
+      duration: 2,
+      delay,
+      repeat: Infinity,
+      repeatType: "reverse",
+      ease: "easeInOut"
+    }}
+    className="absolute bg-primary/10 rounded-full"
+    style={{
+      left: `${x}%`,
+      top: `${y}%`,
+      width: size,
+      height: size
+    }}
+  />
+);
 
 const HeroSection: React.FC = () => {
+  const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const [isTyping, setIsTyping] = useState(true);
-  const mainText = "Crafting Digital Excellence";
-  const [displayText, setDisplayText] = useState('');
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [displayedText, setDisplayedText] = useState('');
+  const sectionRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end start"]
+  });
+  const { ref: inViewRef, inView } = useInView({
+    threshold: 0.1,
+    triggerOnce: true
+  });
+
+  const y = useTransform(scrollYProgress, [0, 1], [0, -100]);
+  const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
 
   useEffect(() => {
-    if (currentIndex < mainText.length) {
-      const timeout = setTimeout(() => {
-        setDisplayText(prev => prev + mainText[currentIndex]);
-        setCurrentIndex(prev => prev + 1);
-      }, 100);
+    let timeout: NodeJS.Timeout;
+    let currentIndex = 0;
+    let currentText = '';
+    let isDeleting = false;
+    let typingSpeed = 100;
 
-      return () => clearTimeout(timeout);
-    } else {
-      setIsTyping(false);
-    }
-  }, [currentIndex]);
+    const type = () => {
+      const fullText = TYPING_VARIATIONS[currentIndex];
+      
+      if (isDeleting) {
+        currentText = fullText.substring(0, currentText.length - 1);
+        if (currentText === '') {
+          isDeleting = false;
+          currentIndex = (currentIndex + 1) % TYPING_VARIATIONS.length;
+        }
+      } else {
+        currentText = fullText.substring(0, currentText.length + 1);
+        if (currentText === fullText) {
+          timeout = setTimeout(() => {
+            isDeleting = true;
+          }, 2000);
+        }
+      }
+
+      setDisplayedText(currentText);
+      timeout = setTimeout(type, typingSpeed);
+    };
+
+    type();
+
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, []);
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center bg-zinc-50 overflow-hidden">
-      <div className="container mx-auto px-6 py-32 relative z-10">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="relative font-display text-5xl md:text-7xl font-medium mb-6 inline-block">
-            <span className="relative">
-              {displayText}
-              {isTyping && (
-                <span className="absolute right-[-4px] top-0 h-full w-[2px] bg-zinc-900 animate-blink"></span>
-              )}
+    <section
+      ref={(node) => {
+        sectionRef.current = node;
+        inViewRef(node);
+      }}
+      className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-b from-zinc-50 to-white"
+      style={{ y, opacity }}
+    >
+      {/* Animated Background Pattern */}
+      <div className="absolute inset-0 bg-grid-pattern opacity-5" />
+      
+      {/* Particle Effect */}
+      <div className="absolute inset-0 overflow-hidden">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <Particle
+            key={i}
+            x={Math.random() * 100}
+            y={Math.random() * 100}
+            size={Math.random() * 4 + 2}
+            delay={Math.random() * 2}
+          />
+        ))}
+      </div>
+
+      <div className="container mx-auto px-6 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="text-center"
+        >
+          <h1 
+            className="text-5xl md:text-7xl font-display font-medium mb-6 bg-clip-text text-transparent bg-gradient-to-r from-zinc-900 to-zinc-600"
+            id="hero-title"
+            aria-label="Welcome to ALAVI Digital Agency"
+          >
+            We Create
+            <span className="block text-primary relative">
+              {displayedText}
+              <span className="inline-block w-0.5 h-8 bg-primary animate-pulse ml-1" aria-hidden="true" />
             </span>
           </h1>
           
-          <p className="text-xl md:text-2xl mb-8 opacity-0 animate-fade-in animation-delay-1000 bg-gradient-to-r from-blue-400 to-blue-900 bg-clip-text text-transparent">
-            We transform your vision into exceptional digital experiences that inspire, engage, and deliver results.
+          <p className="text-lg md:text-xl text-zinc-600 mb-8 max-w-2xl mx-auto">
+            Transforming ideas into exceptional digital experiences through innovative design and cutting-edge technology.
           </p>
 
-          <div className="flex justify-center space-x-4 opacity-0 animate-fade-in animation-delay-1500">
-            <a 
-              href="#contact" 
-              className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium text-white bg-zinc-900 rounded-full hover:bg-zinc-800 transition-colors"
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <a
+              href="#contact"
+              className="group relative px-8 py-4 bg-gradient-to-r from-primary to-primary/90 text-white rounded-full shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-105 transition-all duration-300 overflow-hidden"
+              role="button"
+              aria-label="Get Started"
             >
-              Start a Project
+              <span className="relative z-10">Get Started</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <ArrowRight className="w-5 h-5 ml-2 inline-block transform group-hover:translate-x-1 transition-transform duration-300" />
             </a>
-            <a 
-              href="#services" 
-              className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium text-zinc-900 border border-zinc-200 rounded-full hover:border-zinc-400 transition-colors"
+            
+            <a
+              href="#services"
+              className="group px-8 py-4 text-zinc-900 hover:text-primary transition-colors duration-300 flex items-center gap-2"
+              role="button"
+              aria-label="Explore Our Services"
             >
-              Our Services
+              Explore Our Services
+              <ArrowRight className="w-5 h-5 transform group-hover:translate-x-1 transition-transform duration-300" />
             </a>
           </div>
-        </div>
-
-        <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 animate-bounce">
-          <a href="#services" className="text-zinc-400 hover:text-zinc-600 transition-colors">
-            <ArrowDown className="w-6 h-6" />
-          </a>
-        </div>
+        </motion.div>
       </div>
-
-      {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/50"></div>
     </section>
   );
 };
